@@ -1,0 +1,99 @@
+Code location: 
+
+A6 - Sensitive Data Exposure:  Re-entering the same name to register for the event will produce a message indicating the person was already registered (and will provide the address).  This provides a means for someone else to ascertain sensitive data.
+
+Issue: Sensitive Data Exposure
+Steps to reproduce:
+1. Go to localhost:8080
+2. If not already logged in, you will automatically be directed to the "login" page.  Enter "ted" and "password" for User/Password, and click the Login button.
+3. In the "form" page insert name (e.g. "ted") and address (e.g. "ted's private address")
+4. Click Submit
+5. You will receive a message to indicate user has been signed up to the event
+6. Go to localhost:8080 (or localhost:8080/form)
+7. Again, insert the same name (e.g. "ted").  Doesn't matter what address is entered
+8. Click Submit
+9. A message will be displayed indicating user (e.g. "ted") was already registered and will display the private address.
+10. From another browswer login as "bob" with password "notsosecret"
+11. Repeat steps 7 and 8, with the username "ted" again.
+12. Ted's private address will be displayed for Bob
+
+Identification: Using ZAP this is not automatically found.  However, resending the form with the POST parameters (name and address) in ZAP produces the "already registered" message, even when not authenticated as the same user who created the initial registration.
+ 
+Fix: In order to fix this issue, the account details should be storing the name with which the user authenticated, not some arbitrary name that someone else can provide without any verification.
+
+=========================
+
+A4 - Insecure Direct Object References:  There is no restriction on anyone invoking "/duplicate?name=X" to try determine whether the name was registered, and if so what the address is.  This also provides the attacker with a means to perform A3 (XSS) and A6 (Sensitive Data Exposure).
+
+Issue: Insecure Direct Object References
+Steps to reproduce:
+1. Go to localhost:8080
+2. If not already logged in, you will automatically be directed to the "login" page.  Enter "ted" and "password" for User/Password, and click the Login button.
+3. In the "form" page insert name (e.g. "ted") and address (e.g. "ted's private address")
+4. Click Submit
+5. You will receive a message to indicate user has been signed up to the event
+6. Go to localhost:8080/duplicate?name=ted
+7. A message will be displayed indicating user (e.g. "ted") was already registered and will display the private address.
+
+Identification:  The sensitive object name=value was clearly seen when the browser was proxying through ZAP.
+
+Fix: The name of the user should never be passed as a parameter within the URL.  Like the fix for the Sensitive Data Exposure issue above, the name used on the duplicate notice page could be obtained from that of the authenticated user.
+
+=========================
+
+A2 - Broken Authentication and Session Management:  There is no confirmation before resetting passwords
+
+Issue: Broken Authentication and Session Management
+Steps to reproduce:
+1. Go to localhost:8080
+2. If not already logged in, you will automatically be directed to the "login" page.  Enter "ted" and "password" for User/Password, and click the Login button.
+3. In the "form" page click on reset password
+4. Enter new password and confirm in the second text field.  Note the original password was not necessary
+5. Click submit (the code does not currently change the password - working to determine the Java/Spring syntax)
+
+Identification:  Manual identification -- who would ever let you change a password without verifying the original one?!?!
+
+Fix: The original password must be queried from the user and used for verification before resetting the password
+
+=========================
+
+A8 - Cross-Site Request Forgery:  Because the application does not prevent CSRF attacks, it is possible to have a malicious web site direct the broswer to perform requests while authenticated.  e.g., to reset the password.
+
+Issue: Cross-Site Request Forgery
+Steps to reproduce:
+1. Go to localhost:8080
+2. If not already logged in, you will automatically be directed to the "login" page.  Enter "ted" and "password" for User/Password, and click the Login button.
+3. Create a malicious web page, called /tmp/change_password.html with the following contents:
+	<form action="http://localhost:8080/resetPassword" method="POST">
+	<input type="password" name="password" value="changed"/>
+	<input type="password" name="confirm" value="changed"/>
+	</form>
+	<body onload="document.forms[0].submit()">
+4. Visit malicious web page by typing in the following URL:  file:///tmp/change_password.html
+5. The malicious web page will post the data required to change the password to "changed" without the user confirming the password.
+
+Identification: Using the POST parameters for the resetPassword from ZAP, create the malicious web page and have the browser load.
+
+Fix: Remove (or comment out) the http.csrf().disable() from the module SecurityConfiguration.java.
+
+=========================
+
+A3 - Cross-Site Scripting (XSS):  Data entered into "name" and "address" fields is not validated or escaped.  A stored XSS attack is possible as executable scripts can be sent to the victim's browser (e.g. <script>alert("Hello");</script>)
+
+Issue: Cross-Site Request Forgery
+Steps to reproduce:
+1. Go to localhost:8080
+2. If not already logged in, you will automatically be directed to the "login" page.  Enter "ted" and "password" for User/Password, and click the Login button.
+3. In the "form" page insert name (e.g. "bob") and address (e.g. "<script>alert("Hello");</script>")
+4. Click Submit
+5. You will receive a message to indicate user has been signed up to the event.
+6. This stores the script as executable data that will run when sent to the victim's browser
+7. From another browswer login as "bob" with password "notsosecret"
+8. On the form page, enter "bob" and "bob's address".  Click Submit
+9. The broswer will be redirected to the duplicates page and the message will cause the browser to run the javascript, which pops up the alert box
+
+Identification: Worked with ZAP for fuzzing the name and address fields, but it would still need to know what other web page(s) would print the results of the stored data, so it still had a manual component in the identification and testing.
+
+Fix: Ensure all data entered by user is validated before being stored (eg, &, <, >, ", ').  Apparently org.apache.commons.lang.StringEscapeUtils.escapeXml() will do this.  
+
+
