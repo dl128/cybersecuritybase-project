@@ -3,6 +3,9 @@ Code location: https://github.com/dl128/cybersecuritybase-project
 From a non-Java/Spring programmer - I understand the OWASP Top 10, but some solutions below describe what needs to be done
 without the actual code (yet).  The program itself is, of course, meant to show poor design.
 
+The program can be downloaded into NetBeans the same as for the previous Java programs in the Securing Software section of
+the course, from this github location.
+
 A6 - Sensitive Data Exposure:  Re-entering the same name to register for the event will produce a message indicating the person was already registered (and will provide the address).  This provides a means for someone else to ascertain sensitive data.
 
 Issue: Sensitive Data Exposure
